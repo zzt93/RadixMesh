@@ -1,0 +1,4 @@
+
+prefill_cache_nodes: [localhost:50001,localhost:50002,localhost:50003]
+router_cache_nodes: [localhost:50010]
+cache_addr: localhost:50002
