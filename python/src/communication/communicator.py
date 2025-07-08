@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 import logging
 from typing import Optional, Callable
 
-from communication import serializer
-from radix.cache_oplog import CacheOplog
+from src.communication import serializer
+from python.src.radix.cache_oplog import CacheOplog
 
 logger = logging.getLogger(__name__)
 

@@ -6,6 +6,7 @@ Use `SGLang`'s radix_cache and `mooncake` transfer engine to implement
 
 ```bash
 
+
 ```
 
 ## Why need RadixMesh
@@ -15,13 +16,13 @@ Use `SGLang`'s radix_cache and `mooncake` transfer engine to implement
 
 ## How to be Distributed & Consistent
 
-Eventual Consistency
+**Eventual Consistency**
 
 - same base state
 - ordered oplog applied
-- lock free policy to resolve possible multi-write conflict
+- **lock free** policy to resolve possible multi-write conflict
 
-Notice
+**Notice**
 
 - The tree structures among the different nodes may not be identical, but the query (lookup) results should be
   consistent.
@@ -32,13 +33,8 @@ Notice
 - register callback for receive oplog rather than polling
 - exchange addr of remote natively
 
+## Detail
 ### Limitation
 
 - All nodes' config should be same except `local_cache_addr`
 
-### Detail
-
-The requirement of `communicator`
-
-- fast
-- ordered (actually not ordered can also support, but add much complexity)

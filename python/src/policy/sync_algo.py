@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from config.cache_config import ServerArgs
+from src.config.cache_config import ServerArgs
 
 MASTER_RANK = 0
 

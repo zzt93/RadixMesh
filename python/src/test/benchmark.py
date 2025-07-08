@@ -1,9 +1,9 @@
 import argparse
 import sys
 
-from config.cache_config import load_server_args
-from test.correctness import add_cli_args
-from radix.radix_mesh import RadixMesh
+from src.config.cache_config import load_server_args
+from src.test.correctness import add_cli_args
+from src.radix.radix_mesh import RadixMesh
 
 
 def str_to_list(s: str):

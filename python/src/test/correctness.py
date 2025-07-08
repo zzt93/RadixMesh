@@ -1,8 +1,8 @@
 import argparse
 import sys
 
-from config.cache_config import load_server_args
-from radix.radix_mesh import RadixMesh
+from src.config.cache_config import load_server_args
+from src.radix.radix_mesh import RadixMesh
 
 
 def add_cli_args(parser: argparse.ArgumentParser):

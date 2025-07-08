@@ -1,10 +1,6 @@
 import enum
 from typing import List
 
-import torch
-
-import util
-
 
 class CacheState(str, enum.Enum):
     VALID = "valid"
@@ -34,4 +30,3 @@ class CacheOplog:
         self.local_logic_id = local_logic_id
         self.key = key
         self.value = value
-
