@@ -7,12 +7,19 @@ from typing import List
 class ServerArgs:
     prefill_cache_nodes: List[str] = field(default_factory=list)
     router_cache_nodes: List[str] = field(default_factory=list)
+    decode_cache_nodes: List[str] = field(default_factory=list)
     local_cache_addr: str = field(default="")
     max_radix_cache_size: int = field(default=16 * 1024 * 1024)
     mooncake_metadata_server: str = ''
 
-    cache_node_rank: int = -1
+    prefill_node_rank: int = -1
+    decode_node_rank: int = -1
     router_node_rank: int = -1
+
+    def is_decode_node_rank(self, node_rank: int) -> bool:
+        if len(self.prefill_cache_nodes) <= node_rank < len(self.prefill_cache_nodes) + len(self.decode_cache_nodes):
+            return True
+        return False
 
 
 def load_server_args(yaml_file: str) -> ServerArgs:
@@ -21,25 +28,38 @@ def load_server_args(yaml_file: str) -> ServerArgs:
 
     prefill = config.get('prefill_cache_nodes', [])
     router = config.get('router_cache_nodes', [])
+    decode = config.get('decode_cache_nodes', [])
     if len(router) > 1:
         raise NotImplementedError("Multiple routers not supported")
 
-    cache_addr = config.get('cache_addr')
+    int
+    seen = 0
+    cache_addr = config.get('local_cache_addr')
     try:
-        node_rank = prefill.index(cache_addr)
+        prefill_node_rank = prefill.index(cache_addr)
+        seen += 1
     except ValueError:
-        node_rank = -1
+        prefill_node_rank = -1
+
     try:
-        router_node_rank = router.index(cache_addr)
+        decode_node_rank = decode.index(cache_addr) + len(prefill)
+        seen += 1
+    except ValueError:
+        decode_node_rank = -1
+
+    try:
+        router_node_rank = router.index(cache_addr) + len(prefill) + len(decode)
+        seen += 1
     except ValueError:
         router_node_rank = -1
 
-    if node_rank == -1 and router_node_rank == -1:
-        raise ValueError("invalid config cache_addr")
+    if seen != 1:
+        raise ValueError("invalid config local_cache_addr")
 
     return ServerArgs(
         prefill_cache_nodes=prefill,
         router_cache_nodes=router,
-        cache_node_rank=node_rank,
+        prefill_node_rank=prefill_node_rank,
+        decode_node_rank=decode_node_rank,
         router_node_rank=router_node_rank
     )

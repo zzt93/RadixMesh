@@ -28,6 +28,10 @@ class CacheOplog:
     key: List
     value: List
 
-    def __init__(self):
-        pass
+    def __init__(self, oplog_type: CacheOplogType, node_rank: int, local_logic_id: int, key: List, value: List):
+        self.oplog_type = oplog_type
+        self.node_rank = node_rank
+        self.local_logic_id = local_logic_id
+        self.key = key
+        self.value = value
 

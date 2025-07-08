@@ -2,20 +2,14 @@ import argparse
 import sys
 
 from config.cache_config import load_server_args
+from test.correctness import add_cli_args
 from radix.radix_mesh import RadixMesh
 
 
-def add_cli_args(parser: argparse.ArgumentParser):
-    # Model and port args
-    parser.add_argument(
-        "--config-file",
-        type=str,
-        help="The path of the cache nodes",
-        required=True,
-    )
+def str_to_list(s: str):
+    return [ord(c) for c in s]
 
 
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     add_cli_args(parser)
@@ -23,4 +17,10 @@ if __name__ == '__main__':
     server_args = load_server_args(raw_args.config_file)
     print(server_args)
 
-    radix_mesh = RadixMesh(server_args)
+    p3 = RadixMesh(server_args)
+    p2 = RadixMesh(server_args)
+
+    p3.insert(str_to_list('abc'))
+    p2.insert(str_to_list('abc'))
+    p2.insert(str_to_list('abcd'))
+    p2.insert(str_to_list('ab'))
