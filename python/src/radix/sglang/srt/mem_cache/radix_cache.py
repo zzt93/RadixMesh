@@ -1,6 +1,7 @@
 #
 # Adopted from SGLang
 #
+import dataclasses
 from collections import defaultdict
 from functools import partial
 from typing import Optional, List, NamedTuple, Any
@@ -63,7 +64,8 @@ class TreeNode:
         return self.last_access_time < other.last_access_time
 
 
-class MatchResult(NamedTuple):
+@dataclasses.dataclass
+class MatchResult:
     """Result of a prefix match operation.
 
     Attributes:
@@ -85,12 +87,12 @@ class MatchResult(NamedTuple):
 class RadixCache():
     ### modified ###
     def __init__(
-        self,
-        req_to_token_pool,
-        token_to_kv_pool_allocator,
-        page_size: int,
-        disable: bool = False,
-        enable_kv_cache_events: bool = False,
+            self,
+            req_to_token_pool,
+            token_to_kv_pool_allocator,
+            page_size: int,
+            disable: bool = False,
+            enable_kv_cache_events: bool = False,
     ):
         self.req_to_token_pool = req_to_token_pool
         self.token_to_kv_pool_allocator = token_to_kv_pool_allocator
@@ -382,13 +384,13 @@ class RadixCache():
                 parent_block_hash = None
             else:
                 last_page_start = (
-                    (len(node.parent.key) - 1) // self.page_size
-                ) * self.page_size
+                                          (len(node.parent.key) - 1) // self.page_size
+                                  ) * self.page_size
                 parent_parent_tokens = node.parent.key[last_page_start:]
                 parent_block_hash = hash(tuple(parent_parent_tokens))
 
             for start in range(0, len(node.key), self.page_size):
-                page_tokens = node.key[start : start + self.page_size]
+                page_tokens = node.key[start: start + self.page_size]
                 if not page_tokens:
                     continue
 
@@ -411,7 +413,7 @@ class RadixCache():
         # One BlockRemoved per chunk.
         if self.enable_kv_cache_events:
             for start in range(0, len(node.key), self.page_size):
-                page_tokens = node.key[start : start + self.page_size]
+                page_tokens = node.key[start: start + self.page_size]
                 if not page_tokens:
                     continue
                 block_hash = hash(tuple(page_tokens))
@@ -432,7 +434,6 @@ class RadixCache():
         events = self.kv_event_queue
         self.kv_event_queue = []
         return events
-
 
 # ### modified ###
 # def cache_finished_req(cache: RadixCache, req: Req, req_to_token_pool: ReqToTokenPool,

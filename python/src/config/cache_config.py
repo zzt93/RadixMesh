@@ -11,6 +11,7 @@ class ServerArgs:
     local_cache_addr: str = field(default="")
     max_radix_cache_size: int = field(default=16 * 1024 * 1024)
     mooncake_metadata_server: str = ''
+    protocol: str = 'tcp'
 
     prefill_node_rank: int = -1
     decode_node_rank: int = -1
@@ -26,15 +27,16 @@ def load_server_args(yaml_file: str) -> ServerArgs:
     with open(yaml_file, 'r') as f:
         config = yaml.safe_load(f)
 
-    prefill = config.get('prefill_cache_nodes', [])
-    router = config.get('router_cache_nodes', [])
-    decode = config.get('decode_cache_nodes', [])
+    args = ServerArgs(**config)
+
+    prefill = args.prefill_cache_nodes
+    router = args.router_cache_nodes
+    decode = args.decode_cache_nodes
     if len(router) > 1:
         raise NotImplementedError("Multiple routers not supported")
 
-    int
     seen = 0
-    cache_addr = config.get('local_cache_addr')
+    cache_addr = args.local_cache_addr
     try:
         prefill_node_rank = prefill.index(cache_addr)
         seen += 1
@@ -56,10 +58,7 @@ def load_server_args(yaml_file: str) -> ServerArgs:
     if seen != 1:
         raise ValueError("invalid config local_cache_addr")
 
-    return ServerArgs(
-        prefill_cache_nodes=prefill,
-        router_cache_nodes=router,
-        prefill_node_rank=prefill_node_rank,
-        decode_node_rank=decode_node_rank,
-        router_node_rank=router_node_rank
-    )
+    args.prefill_node_rank = prefill_node_rank
+    args.router_node_rank = router_node_rank
+    args.decode_node_rank = decode_node_rank
+    return args

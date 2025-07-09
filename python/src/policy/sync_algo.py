@@ -17,13 +17,13 @@ class RingSyncAlgo(BaseSyncAlgo):
 
     def next(self, args: ServerArgs):
         if args.prefill_node_rank >= 0:
-            return (args.prefill_cache_nodes[(args.prefill_node_rank + 1) % len(args.prefill_cache_nodes)],
-                    args.router_cache_nodes)
+            return args.prefill_cache_nodes[
+                (args.prefill_node_rank + 1) % len(args.prefill_cache_nodes)], args.router_cache_nodes
         if args.decode_node_rank >= 0:
             return args.prefill_cache_nodes[MASTER_RANK], None
         if args.router_node_rank >= 0:
             return args.prefill_cache_nodes[MASTER_RANK], None
-
+        return None, None
 
 
 def get_sync_algo():

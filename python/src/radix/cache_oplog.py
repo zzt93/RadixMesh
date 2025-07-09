@@ -30,3 +30,16 @@ class CacheOplog:
         self.local_logic_id = local_logic_id
         self.key = key
         self.value = value
+
+    def to_dict(self):
+        return {
+            'oplog_type': str(self.oplog_type.value),
+            'node_rank': self.node_rank,
+            'local_logic_id': self.local_logic_id,
+            'key': self.key,
+            'value': self.value
+        }
+
+    def __str__(self):
+        return (f"CacheOplog(oplog_type={self.oplog_type}, node_rank={self.node_rank}, "
+                f"local_logic_id={self.local_logic_id}, key={self.key}, value={self.value})")
