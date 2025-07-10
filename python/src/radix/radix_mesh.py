@@ -87,14 +87,11 @@ class RouterRadixMeshTreeValue:
 
 
 @dataclasses.dataclass
-class RouterMatchResult(MatchResult):
+class RouterMatchResult:
     prefill_node_rank: int = -1
     decode_node_rank: int = -1
 
     def __init__(self, prefill_node_rank: int, decode_node_rank: int = -1):
-        super().__init__(device_indices=None,
-                         last_device_node=None,
-                         last_host_node=None, )
         self.prefill_node_rank = prefill_node_rank
         self.decode_node_rank = decode_node_rank
 
@@ -194,7 +191,7 @@ class RadixMesh(RadixCache):
         self.send_insert_event(key, value)
         return total_prefix_length
 
-    def match_prefix(self, key: List[int], **kwargs) -> MatchResult:
+    def match_prefix(self, key: List[int], **kwargs) -> Union[MatchResult, RouterMatchResult]:
         if self.page_size != 1:
             page_aligned_len = len(key) // self.page_size * self.page_size
             key = key[:page_aligned_len]
@@ -228,7 +225,7 @@ class RadixMesh(RadixCache):
                             rank), f"[RadixMesh] Prefix match node_rank {rank} is invalid"
                         if decode_node_rank == -1:
                             decode_node_rank = rank
-                    assert prefill_node_rank != -1, f"[RadixMesh] Prefix match node_rank {rank} is invalid"
+                assert prefill_node_rank != -1, f"[RadixMesh] Prefix match node_rank {value} is invalid"
             return RouterMatchResult(prefill_node_rank=prefill_node_rank, decode_node_rank=decode_node_rank)
 
     def reset(self):
@@ -387,3 +384,15 @@ class RadixMesh(RadixCache):
             return
 
         assert False, "not implemented yet"
+
+    def prefill_cache_nodes(self, prefill_node_rank=None):
+        # TODO change to dynamic node collection
+        if prefill_node_rank is None:
+            return self.args.prefill_cache_nodes
+        return self.args.prefill_cache_nodes[prefill_node_rank]
+
+    def decode_cache_nodes(self, decode_node_rank=None):
+        # TODO change to dynamic node collection
+        if decode_node_rank is None:
+            return self.args.decode_cache_nodes
+        return self.args.decode_cache_nodes[self.args.local_node_rank(decode_node_rank)]

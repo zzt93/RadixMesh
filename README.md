@@ -36,7 +36,7 @@ python3 -m src.test.benchmark
 
 ## Why need RadixMesh
 
-- Using distributed radix trees to share across `prefill` nodes to reuse kv cache, which accelerate LLM generation much
+- Using distributed radix trees to share across `prefill/decode` nodes to reuse kv cache, which accelerate LLM generation much
 - Using distributed radix trees to share across `router` nodes to make cache-aware-routing
 
 ## How to be Distributed & Consistent
@@ -85,7 +85,7 @@ python3 -m src.test.benchmark
 
 - prefix match first
     - give prefill node & decode node
-- consistent hash if multiple nodes met
+- consistent hash if no nodes has cache
 
 ### Limitation
 
