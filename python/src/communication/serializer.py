@@ -1,5 +1,6 @@
 import json
 from typing import Any
+from pydantic import BaseModel
 
 from src.radix.cache_oplog import CacheOplog
 
@@ -34,8 +35,8 @@ class JsonSerializer(Serializer):
         Deserialize Python object from JSON in buf.
         """
         data: str = buf[:size].decode('utf-8')
-        obj: CacheOplog = json.loads(data, object_hook=dict_to_oplog)
-        return obj
+        restored = CacheOplog.model_validate_json(data)
+        return restored
 
 
 def serializer():

@@ -22,6 +22,18 @@ class ServerArgs:
             return True
         return False
 
+    def is_prefill_node_rank(self, node_rank: int) -> bool:
+        if node_rank < len(self.prefill_cache_nodes):
+            return True
+        return False
+
+    def local_node_rank(self, global_node_rank: int) -> int:
+        if global_node_rank < len(self.prefill_cache_nodes):
+            return global_node_rank
+        elif global_node_rank < len(self.prefill_cache_nodes) + len(self.decode_cache_nodes):
+            return global_node_rank - len(self.prefill_cache_nodes)
+        return global_node_rank - len(self.prefill_cache_nodes) - len(self.decode_cache_nodes)
+
 
 def load_server_args(yaml_file: str) -> ServerArgs:
     with open(yaml_file, 'r') as f:

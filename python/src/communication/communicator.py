@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 class Communicator(ABC):
     @abstractmethod
-    def send(self, value) -> int:
+    def send(self, value: CacheOplog) -> int:
         pass
 
     @abstractmethod
@@ -23,6 +23,11 @@ class Communicator(ABC):
     @abstractmethod
     def is_ordered(self) -> bool:
         pass
+
+    @abstractmethod
+    def target_address(self) -> str:
+        pass
+
 
 
 class MooncakeCommunicator(Communicator):
@@ -68,6 +73,9 @@ class MooncakeCommunicator(Communicator):
     def _allocate_buf(self, length):
         self.read_buffer = self.engine.allocate_managed_buffer(length)
         self.write_buffer = self.engine.allocate_managed_buffer(length)
+
+    def target_address(self) -> str:
+        return self.target_session_id
 
     def _initialize_engine(
             self,
@@ -130,7 +138,6 @@ def parse_addr(addr):
 
 class TcpCommunicator(Communicator):
     def __init__(self, local_addr: str, target: str, length: int):
-        self.target_host, self.target_port = parse_addr(target)
         self.callback = None
         self._running = True
         self.buf_len = length
@@ -138,15 +145,21 @@ class TcpCommunicator(Communicator):
         self.serializer = serializer.serializer()
         self._allocate_buf(length)
 
+        assert local_addr != "" or target != "", "invalid addr config"
         if local_addr != "":
             self.local_host, self.local_port = parse_addr(local_addr)
             self.listener_thread = threading.Thread(target=self._listen, daemon=True)
             self.listener_thread.start()
 
-        self._send_lock = threading.Lock()
-        self._send_sock = None
-        self._send_sock_lock = threading.Lock()  # 避免多线程重复连接
-        self._connect_send_sock()
+        if target != "":
+            self.target_host, self.target_port = parse_addr(target)
+            self._send_lock = threading.Lock()
+            self._send_sock = None
+            self._send_sock_lock = threading.Lock()  # 避免多线程重复连接
+            self._connect_send_sock()
+
+    def target_address(self) -> str:
+        return f"{self.target_host}:{self.target_port}"
 
     def _connect_send_sock(self):
         # 尝试建立连接
@@ -196,8 +209,8 @@ class TcpCommunicator(Communicator):
     def _listen(self):
         srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        logger.info(f"[TcpCommunicator]: Try bind to {self.local_host}:{self.local_port}")
         srv.bind((self.local_host, self.local_port))
+        logger.info(f"[TcpCommunicator]: Bound to {self.local_host}:{self.local_port}")
         srv.listen(5)
         while self._running:
             try:

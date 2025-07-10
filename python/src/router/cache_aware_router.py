@@ -19,6 +19,6 @@ class CacheAwareRouter:
     def __init__(self, radix_mesh: RadixMesh, prefill_nodes: PrefillNode):
         self.radix_mesh = radix_mesh
 
-    def cache_aware_route(self, key: list[int]) -> PrefillNode:
+    def cache_aware_route(self, key: List[int]) -> PrefillNode:
         match_res = self.radix_mesh.match_prefix(key)
         return PrefillNode()

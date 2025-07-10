@@ -1,4 +1,0 @@
-torch~=2.7.1
-numpy
-pyyaml~=6.0.2
-mooncake-transfer-engine

@@ -1,6 +1,8 @@
 import enum
 from typing import List
 
+from pydantic import BaseModel
+
 
 class CacheState(str, enum.Enum):
     VALID = "valid"
@@ -8,38 +10,35 @@ class CacheState(str, enum.Enum):
     DEPRECATED = "deprecated"
 
 
-class CacheOplogType(str, enum.Enum):
+class CacheOplogType(enum.IntEnum):
     """
     Cache oplog: idempotent operation for radix cache tree
     """
-    INSERT = "insert"
-    DELETE = "delete"
-    RESET = "reset"
+    INSERT = 1
+    DELETE = 2
+    RESET = 3
+    TICK = 4
 
 
-class CacheOplog:
+class CacheOplog(BaseModel):
     oplog_type: CacheOplogType
     node_rank: int
     local_logic_id: int
     key: List
     value: List
-
-    def __init__(self, oplog_type: CacheOplogType, node_rank: int, local_logic_id: int, key: List, value: List):
-        self.oplog_type = oplog_type
-        self.node_rank = node_rank
-        self.local_logic_id = local_logic_id
-        self.key = key
-        self.value = value
+    ttl: int
 
     def to_dict(self):
         return {
-            'oplog_type': str(self.oplog_type.value),
+            'oplog_type': self.oplog_type.value,
             'node_rank': self.node_rank,
             'local_logic_id': self.local_logic_id,
             'key': self.key,
-            'value': self.value
+            'value': self.value,
+            'ttl': self.ttl,
         }
 
     def __str__(self):
         return (f"CacheOplog(oplog_type={self.oplog_type}, node_rank={self.node_rank}, "
-                f"local_logic_id={self.local_logic_id}, key={self.key}, value={self.value})")
+                f"local_logic_id={self.local_logic_id}, key={self.key}, value={self.value})"
+                f"ttl={self.ttl})")

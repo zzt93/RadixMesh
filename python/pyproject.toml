@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "radixmesh"
+version = "0.1.0"
+description = "Distributed Radix Tree Cache for Accelerating LLM Serving"
+authors = [
+    { name = "zzt93", email = "zengzt93@gmail.com" }
+]
+requires-python = ">=3.8"
+dependencies = [
+    "torch~=2.7.1",
+    "numpy",
+    "pyyaml~=6.0.2",
+    "pydantic"
+]
+
+[project.optional-dependencies]
+mooncake = [
+    "mooncake-transfer-engine"
+]

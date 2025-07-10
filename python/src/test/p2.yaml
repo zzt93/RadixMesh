@@ -1,6 +1,6 @@
-prefill_cache_nodes: [localhost:50001,localhost:50002,localhost:50003]
-decode_cache_nodes: [localhost:50004]
+prefill_cache_nodes: [localhost:50000,localhost:50001,localhost:50002]
+decode_cache_nodes: [localhost:50003,localhost:50004]
 router_cache_nodes: [localhost:50010]
-local_cache_addr: localhost:50002
+local_cache_addr: localhost:50001
 protocol: test
 mooncake_metadata_server:
