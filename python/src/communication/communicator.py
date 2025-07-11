@@ -29,7 +29,6 @@ class Communicator(ABC):
         pass
 
 
-
 class MooncakeCommunicator(Communicator):
 
     def __init__(self, hostname: str, length: int, target: str, ib_device: Optional[str] = None):
@@ -143,7 +142,6 @@ class TcpCommunicator(Communicator):
         self.buf_len = length
         self.rcv_callback = None
         self.serializer = serializer.serializer()
-        self._allocate_buf(length)
 
         assert local_addr != "" or target != "", "invalid addr config"
         if local_addr != "":
@@ -183,8 +181,13 @@ class TcpCommunicator(Communicator):
         self.callback = fn
 
     def send(self, value) -> int:
-        length = self.serializer.serialize(value, self.write_buf, self.buf_len)
-        msg = length.to_bytes(4, 'big') + self.write_buf[:length]
+        assert self.target_host != "", "no target host, so can't send"
+        encoded = self.serializer.serialize(value)
+        length = len(encoded)
+        if len(encoded) > self.buf_len:
+            raise ValueError(
+                f"too large value length:{len(encoded)}, increase max_radix_cache_size:{self.buf_len} if needed")
+        msg = length.to_bytes(4, 'big') + encoded
         with self._send_lock:
             for retry in range(2):  # 尝试重连1次
                 try:
@@ -241,7 +244,7 @@ class TcpCommunicator(Communicator):
             logger.info('[TcpCommunicator] Connection closed.')
 
     def _recv_all(self, sock, length, clear=False):
-        assert length <= len(self.read_buf), f'length {length}, buf {len(self.read_buf)}'
+        assert length <= self.buf_len, f'length {length}, buf {self.buf_len}'
         buf = bytearray(length)
         view = memoryview(buf)
         total_recv = 0
@@ -258,15 +261,13 @@ class TcpCommunicator(Communicator):
 
     def close(self):
         self._running = False
-        try:
-            if self._send_sock:
-                self._send_sock.close()
-        except Exception:
-            pass
-
-    def _allocate_buf(self, length):
-        self.read_buf = bytearray(length)
-        self.write_buf = bytearray(length)
+        with self._send_sock_lock:
+            try:
+                if self._send_sock:
+                    self._send_sock.close()
+            except Exception:
+                pass
+            self._send_sock = None
 
 
 def create_communicator(hostname: str, target: str, protocol: str, **kwargs) -> Communicator:

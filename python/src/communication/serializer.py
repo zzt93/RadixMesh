@@ -6,7 +6,7 @@ from src.radix.cache_oplog import CacheOplog
 
 
 class Serializer:
-    def serialize(self, value: Any, buf: bytearray, max_len: int) -> int:
+    def serialize(self, value: CacheOplog) -> bytes:
         raise NotImplementedError
 
     def deserialize(self, buf: bytearray, size: int) -> Any:
@@ -18,17 +18,13 @@ def dict_to_oplog(d):
 
 
 class JsonSerializer(Serializer):
-    def serialize(self, value: CacheOplog, buf: bytearray, max_len: int) -> int:
+    def serialize(self, value: CacheOplog) -> bytes:
         """
         Serialize a Python object to JSON, write to buf.
         """
         data: str = json.dumps(value.to_dict())
         encoded: bytes = data.encode('utf-8')
-        if len(encoded) > max_len:
-            raise ValueError(
-                f"too large value length:{len(encoded)}, increase max_radix_cache_size:{max_len} if needed")
-        buf[:len(encoded)] = encoded
-        return len(encoded)
+        return encoded
 
     def deserialize(self, buf: bytearray, size: int) -> CacheOplog:
         """

@@ -17,7 +17,8 @@ class CacheOplogType(enum.IntEnum):
     INSERT = 1
     DELETE = 2
     RESET = 3
-    TICK = 4
+    GC_START = 4
+    TICK = 10
 
 
 class CacheOplog(BaseModel):

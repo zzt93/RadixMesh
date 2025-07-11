@@ -47,15 +47,24 @@ class PrefillRadixMeshTreeValue:
     def __len__(self):
         return len(self.value)
 
-    def resolve(self, other):
+    def resolve(self, other, cur_lock_ref: int):
         if not isinstance(other, PrefillRadixMeshTreeValue):
             raise TypeError("Invalid argument type.")
 
         if not NodeRankConflictResolver.keep(self.node_rank, other.node_rank):
-            self.deprecate_values.append(self.value)
-            self.deprecate_refs.append(self.node_rank)
+            logger.debug(f"Node rank conflict resolving {self.node_rank} -> {other.node_rank}, {self.value} -> {other.value}")
+            if cur_lock_ref > 0:
+                logger.debug(f"current lock ref {cur_lock_ref}")
+                self.deprecate_values.append(self.value)
+                self.deprecate_refs.append(cur_lock_ref)
             self.node_rank = other.node_rank
-            self.value = other.value
+            self.value = other.value.clone()
+
+    def __str__(self):
+        value_shape = self.value.shape if self.value is not None else None
+        deprecate_values_shapes = [v.shape for v in self.deprecate_values] if self.deprecate_values else []
+        return (
+            f"PrefillRadixMeshTreeValue(value: {value_shape}, deprecate_values: {deprecate_values_shapes}, deprecate_refs: {self.deprecate_refs}, node_rank: {self.node_rank}")
 
 
 class RouterRadixMeshTreeValue:
@@ -78,7 +87,7 @@ class RouterRadixMeshTreeValue:
     def __len__(self):
         return 1
 
-    def resolve(self, other):
+    def resolve(self, other, cur_lock_ref: int):
         if not isinstance(other, RouterRadixMeshTreeValue):
             raise TypeError("Invalid argument type.")
 
@@ -117,6 +126,7 @@ class RadixMesh(RadixCache):
         self.communicator = communicator
         self.router_communicators = routers
         self.args = args
+        self._tree_lock = threading.Lock()
 
         logger.info(f"[RadixMesh] Initializing: {self.mode}@{self._global_node_rank}")
         next_prefill_node, routers_node, local_cache_addr = self.sync_algo.topo(args)
@@ -187,7 +197,8 @@ class RadixMesh(RadixCache):
         return self._insert(key, PrefillRadixMeshTreeValue(value, [], [], self.global_node_rank()))
 
     def _insert(self, key: List, value: Union[PrefillRadixMeshTreeValue, RouterRadixMeshTreeValue] = None):
-        total_prefix_length = self._insert_helper(self.root_node, key, value)
+        with self._tree_lock:
+            total_prefix_length = self._insert_helper(self.root_node, key, value)
         self.send_insert_event(key, value)
         return total_prefix_length
 
@@ -278,7 +289,8 @@ class RadixMesh(RadixCache):
 
             if value[:prefix_len] != node.value[:prefix_len]:
                 # value conflict detected
-                node.value[:prefix_len].resolve(value[:prefix_len])
+                # FIXME update lock_ref
+                node.value[:prefix_len].resolve(value[:prefix_len], node.lock_ref)
 
             key = key[prefix_len:]
             value = value[prefix_len:]

@@ -2,7 +2,7 @@ from typing import List
 import hashlib
 from bisect import bisect, bisect_left, insort
 
-from src.radix.radix_mesh import RadixMesh
+from src.radix.radix_mesh import RadixMesh, RouterMatchResult
 
 
 class RouteResult:
@@ -15,11 +15,18 @@ class RouteResult:
 
 
 class CacheAwareRouter:
-    def __init__(self, radix_mesh: RadixMesh):
+    def __init__(self, radix_mesh: RadixMesh, skip_warm_up: bool = False):
         self.radix_mesh = radix_mesh
+        self.warm_up_done = skip_warm_up
+
+    def finish_warm_up(self):
+        self.warm_up_done = True
 
     def cache_aware_route(self, key: List[int]) -> RouteResult:
-        match_res = self.radix_mesh.match_prefix(key)
+        if not self.warm_up_done:
+            match_res = RouterMatchResult(-1, -1)
+        else:
+            match_res = self.radix_mesh.match_prefix(key)
         if match_res.prefill_node_rank != -1:
             prefill_addr = self.radix_mesh.prefill_cache_nodes(match_res.prefill_node_rank)
         else:
