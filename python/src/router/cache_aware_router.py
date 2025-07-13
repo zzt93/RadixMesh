@@ -1,17 +1,15 @@
+import dataclasses
 from typing import List
 import hashlib
 from bisect import bisect, bisect_left, insort
 
 from src.radix.radix_mesh import RadixMesh, RouterMatchResult
 
-
+@dataclasses.dataclass
 class RouteResult:
     prefill_addr: str
     decode_addr: str
 
-    def __init__(self, prefill_addr: str, decode_addr: str):
-        self.prefill_addr = prefill_addr
-        self.decode_addr = decode_addr
 
 
 class CacheAwareRouter:

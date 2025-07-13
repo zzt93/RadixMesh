@@ -9,7 +9,7 @@ import torch
 
 from src.router.cache_aware_router import CacheAwareRouter
 from src.test.test_util import to_string, add_cli_args, generate_random_letter_list, generate_random_int_list, \
-    CountDownLatch
+    CountDownLatch, CyclicBarrier
 from src.util.log import configure_logger
 from src.config.cache_config import load_server_args
 from src.radix.radix_mesh import RadixMesh
@@ -29,12 +29,12 @@ args = [
 ]
 
 
-def sync_and_routing(idx_arg: Tuple[int, str], latch: CountDownLatch):
+def sync_and_routing(idx_arg: Tuple[int, str], latch: CyclicBarrier):
     idx, arg = idx_arg
     server_args = prepare(arg)
     radix_mesh = RadixMesh(server_args)
     if radix_mesh.mode == RadixMode.ROUTER:
-        router = CacheAwareRouter(radix_mesh)
+        router = CacheAwareRouter(radix_mesh, skip_warm_up=True)
 
     # TEST prefill insert
     logger.info("=====TEST prefill insert=====")
@@ -61,13 +61,15 @@ def sync_and_routing(idx_arg: Tuple[int, str], latch: CountDownLatch):
         logger.info(f"test result of PREFILL node: {res.device_indices}, {to_string(res.last_device_node)}")
         assert torch.equal(res.device_indices, v1)
     elif radix_mesh.mode == RadixMode.ROUTER:
-        logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
+        logger.info(f"test result of ROUTER node: {res.prefill_node_rank}, decode rank {res.decode_node_rank}")
         assert res.prefill_node_rank == insert_node_rank, f"expect {insert_node_rank}, get {res.prefill_node_rank}"
         assert res.decode_node_rank == -1, f"expect -1, get {res.decode_node_rank}"
         r = router.cache_aware_route([1, 2, 3, 4])
-        assert r.prefill_addr == server_args.prefill_cache_nodes[insert_node_rank]
+        logger.info(f"{r}")
+        assert r.prefill_addr == server_args.prefill_cache_nodes[
+            insert_node_rank], f"expect {server_args.prefill_cache_nodes[insert_node_rank]}, get {r.prefill_addr}"
 
-    latch.count_down()
+    logger.info("=====TEST prefill insert done =====")
     latch.wait()
 
     # TEST decode insert
@@ -81,7 +83,7 @@ def sync_and_routing(idx_arg: Tuple[int, str], latch: CountDownLatch):
 
     sleep(1)
     res = radix_mesh.match_prefix(k1)
-    if radix_mesh.mode == RadixMode.PREFILL:
+    if radix_mesh.mode == RadixMode.PREFILL or radix_mesh.mode == RadixMode.DECODE:
         logger.info(f"test result of PREFILL node: {res.device_indices}, {to_string(res.last_device_node)}")
         assert torch.equal(res.device_indices, v1)
     elif radix_mesh.mode == RadixMode.ROUTER:
@@ -89,7 +91,7 @@ def sync_and_routing(idx_arg: Tuple[int, str], latch: CountDownLatch):
         assert res.prefill_node_rank == insert_node_rank, f"expect {insert_node_rank}, get {res.prefill_node_rank}"
         assert res.decode_node_rank == decode_insert_node_rank, f"expect {decode_insert_node_rank}, get {res.decode_node_rank}"
     res = radix_mesh.match_prefix([1, 2, 3, 4, 5, 6, 7])
-    if radix_mesh.mode == RadixMode.PREFILL:
+    if radix_mesh.mode == RadixMode.PREFILL or radix_mesh.mode == RadixMode.DECODE:
         logger.info(f"test result of PREFILL node: {res.device_indices}, {to_string(res.last_device_node)}")
         assert torch.equal(res.device_indices, v1)
     elif radix_mesh.mode == RadixMode.ROUTER:
@@ -111,19 +113,28 @@ def prepare(arg):
     return server_args
 
 
+def _fn_wrapper(item, fn, latch, logger):
+    try:
+        result = fn(item, latch=latch)
+        return True, result
+    except Exception as e:
+        logger.exception(f"test exception: %s", e)
+        return False, str(e)
+
+
 def test(fn: Callable, count: int = len(args)):
     with multiprocessing.Manager() as m:
-        count = m.Value('i', count)
+        count_initial = count
         cond = m.Condition()
-        latch = CountDownLatch(count, cond)
+        barrier = CyclicBarrier(count_initial, m, cond)  # 使用CyclicBarrier
 
         with ProcessPoolExecutor() as executor:
             # 提交任务到进程池
-            fc = partial(fn, latch=latch)
+            fc = partial(_fn_wrapper, fn=fn, latch=barrier, logger=logger)
             list(executor.map(fc, enumerate(args)))
 
 
-def multi_write(idx_arg: Tuple[int, str], latch: CountDownLatch):
+def multi_write(idx_arg: Tuple[int, str], latch: CyclicBarrier):
     idx, arg = idx_arg
     server_args = prepare(arg)
 
@@ -141,30 +152,65 @@ def multi_write(idx_arg: Tuple[int, str], latch: CountDownLatch):
             v1_tmp[-1] += idx
             logger.info(f"{v1_tmp}")
             radix_mesh.insert(k1, v1_tmp)
-            latch.count_down()
-            latch.wait()
 
+    latch.wait()
     sleep(1)
     res = radix_mesh.match_prefix(k1)
-    if radix_mesh.mode == RadixMode.PREFILL:
-        logger.info(f"test result of PREFILL node: {to_string(res.last_device_node)}, {res.last_device_node.value}")
-        assert torch.equal(res.device_indices, v1)
+    if radix_mesh.mode == RadixMode.PREFILL or radix_mesh.mode == RadixMode.DECODE:
+        logger.info(f"test result of PREFILL node: {to_string(res.last_device_node)}, {res.last_device_node.value.value}")
+        assert torch.equal(res.device_indices, v1), f"expect {v1}, get {res.device_indices}"
     elif radix_mesh.mode == RadixMode.ROUTER:
         logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
         assert res.prefill_node_rank == radix_mesh.sync_algo.master_node_rank(), f"expect {radix_mesh.sync_algo.master_node_rank()}, get {res.prefill_node_rank}"
     res = radix_mesh.match_prefix([1, 2, 3, 4])
-    if radix_mesh.mode == RadixMode.PREFILL:
-        logger.info(f"test result of PREFILL node: {to_string(res.last_device_node)}, {res.last_device_node.value}")
-        assert torch.equal(res.device_indices, v1)
+    if radix_mesh.mode == RadixMode.PREFILL or radix_mesh.mode == RadixMode.DECODE:
+        logger.info(f"test result of PREFILL node: {to_string(res.last_device_node)}, {res.last_device_node.value.value}")
+        assert torch.equal(res.device_indices, v1), f"expect {v1}, get {res.device_indices}"
     elif radix_mesh.mode == RadixMode.ROUTER:
         logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
         assert res.prefill_node_rank == radix_mesh.sync_algo.master_node_rank(), f"expect {radix_mesh.sync_algo.master_node_rank()}, get {res.prefill_node_rank}"
         assert res.decode_node_rank == -1, f"expect -1, get {res.decode_node_rank}"
         r = router.cache_aware_route([1, 2, 3, 4])
-        assert r.prefill_addr == server_args.prefill_cache_nodes[radix_mesh.sync_algo.master_node_rank()]
+        assert r.prefill_addr == server_args.prefill_cache_nodes[radix_mesh.sync_algo.master_node_rank()], f"expected {server_args.prefill_cache_nodes[radix_mesh.sync_algo.master_node_rank()]} get {r.prefill_addr}"
 
+    latch.wait()
+    logger.info("=====TEST multi write insert2=====")
+    k2 = [1, 2, 3, 4, 5, 6, 7]
+    v2 = torch.tensor([10, 20, 30, 40, 50, 60, 70])
+    if radix_mesh.mode == RadixMode.PREFILL:
+        if radix_mesh.global_node_rank() == 2:
+            k2_tmp = k2
+            v2_tmp = v2.clone()
+            logger.info(f"{v2_tmp}")
+            radix_mesh.insert(k2_tmp, v2_tmp)
+        if radix_mesh.global_node_rank() == 1:
+            k2_tmp = k2[:-1]
+            v2_tmp = v2.clone()[:-1]
+            logger.info(f"{v2_tmp}")
+            radix_mesh.insert(k2_tmp, v2_tmp)
+        if radix_mesh.global_node_rank() == 0:
+            k2_tmp = k2[:-2]
+            v2_tmp = v2.clone()[:-2]
+            logger.info(f"{v2_tmp}")
+            radix_mesh.insert(k2_tmp, v2_tmp)
+
+    latch.wait()
+    sleep(1)
+    res = radix_mesh.match_prefix(k2)
+    if radix_mesh.mode == RadixMode.PREFILL or radix_mesh.mode == RadixMode.DECODE:
+        logger.info(f"test result of PREFILL node: {to_string(res.last_device_node)}, {res.last_device_node.value.value}")
+        assert torch.equal(res.device_indices, v2), f"expect {v2}, get {res.device_indices}"
+    elif radix_mesh.mode == RadixMode.ROUTER:
+        logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
+        assert res.prefill_node_rank == 2, f"expect 2, get {res.prefill_node_rank}"
+        res = radix_mesh.match_prefix(k2[:-1])
+        logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
+        assert res.prefill_node_rank == 1, f"expect 1, get {res.prefill_node_rank}"
+        res = radix_mesh.match_prefix(k2[:-2])
+        logger.info(f"test result of ROUTER node: {res.prefill_node_rank}")
+        assert res.prefill_node_rank == 0, f"expect 0, get {res.prefill_node_rank}"
 
 
 if __name__ == '__main__':
-    # test(sync_and_routing)
-    test(multi_write, len(prepare(args[0]).prefill_cache_nodes))
+    test(sync_and_routing)
+    test(multi_write)

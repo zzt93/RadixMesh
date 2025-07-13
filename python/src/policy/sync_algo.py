@@ -34,10 +34,16 @@ class BaseSyncAlgo(ABC):
     def can_rcv(self, mode: RadixMode) -> bool:
         pass
 
-    def ttl(self, mode: RadixMode, prefill_count):
+    def ttl(self, mode: RadixMode, args: ServerArgs):
         pass
 
-    def tick_ttl(self, mode: RadixMode, prefill_count):
+    def tick_ttl(self, mode: RadixMode, args: ServerArgs):
+        pass
+
+    def gc_ttl(self, mode: RadixMode, args: ServerArgs):
+        pass
+
+    def can_tick(self, mode: RadixMode, args: ServerArgs) -> bool:
         pass
 
 
@@ -51,20 +57,19 @@ class RingSyncAlgo(BaseSyncAlgo):
     def topo(self, args: ServerArgs) -> TopoResult:
         # DECODE node no need start a server
         local_cache_addr = args.local_cache_addr
-        if args.decode_node_rank >= 0:
-            local_cache_addr = ""
 
+        prefill_decode_nodes = args.prefill_cache_nodes + args.decode_cache_nodes
         if args.prefill_node_rank >= 0:
             if args.prefill_node_rank == self.master_node_rank():
-                return TopoResult(args.prefill_cache_nodes[
-                                      (args.prefill_node_rank + 1) % len(args.prefill_cache_nodes)],
+                return TopoResult(prefill_decode_nodes[
+                                      (args.prefill_node_rank + 1) % len(prefill_decode_nodes)],
                                   args.router_cache_nodes, local_cache_addr)
             else:
-                return TopoResult(args.prefill_cache_nodes[
-                                      (args.prefill_node_rank + 1) % len(args.prefill_cache_nodes)], None,
+                return TopoResult(prefill_decode_nodes[
+                                      (args.prefill_node_rank + 1) % len(prefill_decode_nodes)], None,
                                   local_cache_addr)
         if args.decode_node_rank >= 0:
-            return TopoResult(args.prefill_cache_nodes[self.master_node_rank()], None, local_cache_addr)
+            return TopoResult(prefill_decode_nodes[(args.decode_node_rank + 1) % len(prefill_decode_nodes)], None, local_cache_addr)
         if args.router_node_rank >= 0:
             return TopoResult("", None, local_cache_addr)
         return TopoResult("", None, "")
@@ -85,20 +90,24 @@ class RingSyncAlgo(BaseSyncAlgo):
         if mode == RadixMode.PREFILL:
             return True
         if mode == RadixMode.DECODE:
-            return False
+            return True
         if mode == RadixMode.ROUTER:
             return True
         assert False
 
-    def ttl(self, mode: RadixMode, prefill_count):
-        if mode == RadixMode.PREFILL:
-            return prefill_count
-        if mode == RadixMode.DECODE:
-            return prefill_count + 1
+    def ttl(self, mode: RadixMode, args: ServerArgs):
+        if mode == RadixMode.PREFILL or mode == RadixMode.DECODE:
+            return len(args.prefill_cache_nodes) + len(args.decode_cache_nodes)
         assert False
 
-    def tick_ttl(self, mode: RadixMode, prefill_count):
-        return self.ttl(mode, prefill_count) * 2 - 1
+    def tick_ttl(self, mode: RadixMode, args: ServerArgs):
+        return self.ttl(mode, args) * 2
+
+    def gc_ttl(self, mode: RadixMode, args: ServerArgs):
+        return self.ttl(mode, args)
+
+    def can_tick(self, mode: RadixMode, args: ServerArgs) -> bool:
+        return mode == RadixMode.DECODE and args.local_node_rank(args.decode_node_rank) == 0
 
 
 def get_sync_algo() -> BaseSyncAlgo:
